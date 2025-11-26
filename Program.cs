@@ -37,19 +37,28 @@ app.UseCors("K2Policy");
 #region Session Management APIs for K2 SmartObject
 
 // Generate Session Token (for K2 SmartObject - no MAC Address needed)
-// Token will be the same for same deviceId (one token per device)
-// Device ID is automatically generated from client IP + User-Agent
-app.MapGet("/api/session/create", async (HttpContext httpContext, ISessionService sessionService, string? deviceName = null) =>
+// Creates a new token ONLY if client doesn't have an active token
+// Client MUST provide clientId (unique ID from client-side, e.g. GUID)
+app.MapGet("/api/session/create", async (HttpContext httpContext, ISessionService sessionService, string? clientId = null, string? deviceName = null) =>
 {
     try
     {
-        // Auto-generate device ID from client information (IP + User-Agent)
-        var deviceId = DeviceInfoExtractor.GetUniqueDeviceId(httpContext);
+        // Client must provide clientId (unique identifier from client browser/device)
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            return Results.Ok(K2Response<SessionTokenResponse>.Error(
+                400,
+                "clientId is required. Please provide a unique client identifier (e.g., GUID generated on client-side). Example: /api/session/create?clientId=12345678-1234-1234-1234-123456789abc"
+            ));
+        }
+
+        // Use clientId as deviceId
+        var deviceId = clientId.Trim();
 
         // Create device info from HTTP request
         var deviceInfo = new DeviceInfo
         {
-            MacAddress = deviceId, // Store deviceId in MacAddress field
+            MacAddress = deviceId, // Store clientId in MacAddress field
             DeviceName = deviceName ?? DeviceInfoExtractor.GetDeviceName(httpContext),
             IpAddress = DeviceInfoExtractor.GetClientIpAddress(httpContext),
             RealIpAddress = DeviceInfoExtractor.GetRealIpAddress(httpContext),
@@ -60,26 +69,27 @@ app.MapGet("/api/session/create", async (HttpContext httpContext, ISessionServic
             Status = "Active"
         };
 
-        // Get or create session token (same token for same deviceId)
+        // Create new session token (only if client doesn't have active token)
         var response = await sessionService.CreateSessionAsync(deviceId, deviceName, deviceInfo);
-
-        var message = response.DeviceInfo?.RegisteredAt.AddSeconds(2) > DateTime.Now
-            ? "New session token created successfully. Store this token in K2 SmartObject for future requests."
-            : "Existing session token returned. Same device returns same token until expiration.";
 
         return Results.Ok(K2Response<SessionTokenResponse>.Success(
             response,
-            message
+            "New session token created successfully. Store this token in K2 SmartObject for future requests. Cannot create new token until this one is cleared."
         ));
+    }
+    catch (InvalidOperationException ex)
+    {
+        // Client already has an active token
+        return Results.Ok(K2Response<SessionTokenResponse>.Error(1, ex.Message));
     }
     catch (Exception ex)
     {
-        return Results.Ok(K2Response<SessionTokenResponse>.Error(1, $"Error: {ex.Message}"));
+        return Results.Ok(K2Response<SessionTokenResponse>.Error(2, $"Error: {ex.Message}"));
     }
 })
 .WithName("CreateSessionToken")
 .WithTags("Session Management")
-.WithDescription("Create session token for K2 SmartObject (no parameters needed). Device ID is automatically generated from client IP and User-Agent. Same device will return same token until expiration (configurable in appsettings.json). Example: GET /api/session/create or GET /api/session/create?deviceName=My Computer");
+.WithDescription("Create session token for K2 SmartObject. REQUIRED: clientId (unique identifier from client browser/device). Can only create ONE token per client - must clear existing token before creating new one. Example: GET /api/session/create?clientId=12345678-1234-1234-1234-123456789abc&deviceName=My Computer");
 
 // Validate with Session Token (for K2 SmartObject)
 app.MapGet("/api/session/validate", (HttpContext httpContext, string token) =>

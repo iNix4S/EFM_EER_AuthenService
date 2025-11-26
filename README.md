@@ -73,26 +73,42 @@ EXAT_EFM_EER_AuthenService/
 
 #### 1. สร้าง Session Token
 ```
-GET /api/session/create
-GET /api/session/create?deviceName=My Computer
+GET /api/session/create?clientId=xxx
+GET /api/session/create?clientId=xxx&deviceName=My Computer
 ```
 
 **คุณสมบัติ:**
-- ไม่ต้องส่ง parameter ใดๆ (Device ID สร้างอัตโนมัติจาก Client IP + User-Agent)
-- เครื่องเดียวกันจะได้ Token เดิมจนกว่าจะหมดอายุ
+- **ต้องส่ง `clientId`** (REQUIRED) - Unique Identifier จาก Client (เช่น GUID ที่สร้างใน Browser)
+- แต่ละ `clientId` สร้าง Token ได้ครั้งเดียว (ไม่สามารถสร้างซ้ำได้จนกว่าจะ Clear Token)
 - อายุ Token กำหนดใน `appsettings.json` (default: 24 ชั่วโมง)
 - รองรับ VPN Detection
 
-**Response:**
+**Parameters:**
+- `clientId` (required) - Unique Client Identifier (เช่น GUID จาก `crypto.randomUUID()`)
+- `deviceName` (optional) - ชื่อเครื่องที่ต้องการกำหนด
+
+**K2 SmartObject Implementation:**
+```javascript
+// สร้าง/ดึง Client ID จาก localStorage
+var clientId = localStorage.getItem('k2_client_id');
+if (!clientId) {
+    clientId = crypto.randomUUID(); // หรือใช้วิธีอื่นในการสร้าง GUID
+    localStorage.setItem('k2_client_id', clientId);
+}
+// เรียก API
+GET /api/session/create?clientId={clientId}
+```
+
+**Response (Success):**
 ```json
 {
   "statusCode": 0,
-  "message": "New session token created successfully",
+  "message": "New session token created successfully. Store this token in K2 SmartObject for future requests. Cannot create new token until this one is cleared.",
   "data": {
     "sessionToken": "e4f5a6b7-c8d9-e0f1-a2b3-c4d5e6f7a8b9",
     "expiresAt": "2025-11-27T10:30:00Z",
     "deviceInfo": {
-      "macAddress": "1A2B3C4D5E6F7A8B",
+      "macAddress": "12345678-1234-1234-1234-123456789abc",
       "deviceName": "Windows (Edge)",
       "ipAddress": "192.168.1.100",
       "realIpAddress": "203.154.1.1",
@@ -104,6 +120,24 @@ GET /api/session/create?deviceName=My Computer
       "status": "Active"
     }
   }
+}
+```
+
+**Response (Error - No clientId):**
+```json
+{
+  "statusCode": 400,
+  "message": "clientId is required. Please provide a unique client identifier (e.g., GUID generated on client-side). Example: /api/session/create?clientId=12345678-1234-1234-1234-123456789abc",
+  "data": null
+}
+```
+
+**Response (Error - Already has token):**
+```json
+{
+  "statusCode": 1,
+  "message": "Device already has an active session token. Please clear the existing token before creating a new one.",
+  "data": null
 }
 ```
 

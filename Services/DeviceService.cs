@@ -52,14 +52,14 @@ public class SessionService : ISessionService
 
     public Task<SessionTokenResponse> CreateSessionAsync(string deviceId, string? deviceName, DeviceInfo deviceInfo)
     {
-        // Check if device already has a token
+        // Check if device already has an active token
         if (_sessionsByDeviceId.TryGetValue(deviceId, out var existingSession))
         {
             // Check if token is still valid
             if (existingSession.ExpiresAt > DateTime.Now)
             {
-                // Return existing token
-                return Task.FromResult(existingSession);
+                // Cannot create new token - device already has an active token
+                throw new InvalidOperationException($"Device already has an active session token. Please clear the existing token before creating a new one.");
             }
             
             // Token expired, remove old entries
@@ -67,7 +67,7 @@ public class SessionService : ISessionService
             _sessionsByDeviceId.TryRemove(deviceId, out _);
         }
 
-        // Create new session
+        // Create new session token
         var sessionToken = Guid.NewGuid().ToString();
         var expiresAt = DateTime.Now.AddHours(_tokenExpirationHours);
 
