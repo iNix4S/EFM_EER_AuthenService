@@ -168,11 +168,49 @@ GET /api/session/validate?token=xxx
 
 #### 3. ลบ Session Token (Logout)
 ```
+GET /api/session/clear?token=xxx
 DELETE /api/session/clear?token=xxx
 ```
 
+**คุณสมบัติ:**
+- รองรับทั้ง GET และ DELETE method
+- GET method สำหรับเรียกจาก Browser หรือ K2 SmartObject
+- DELETE method เป็น REST standard
+
 **Parameters:**
 - `token` (required) - Token ที่ต้องการลบ
+
+**Response (Success):**
+```json
+{
+  "statusCode": 0,
+  "message": "Session token cleared successfully",
+  "data": {
+    "token": "e4f5a6b7-c8d9-e0f1-a2b3-c4d5e6f7a8b9",
+    "clearedAt": "2025-11-26T10:30:00"
+  }
+}
+```
+
+**Response (Error - Not Found):**
+```json
+{
+  "statusCode": 404,
+  "message": "Session token not found or already expired",
+  "data": null
+}
+```
+
+#### 4. ลบ Token ทั้งหมด (Clear All)
+```
+GET /api/session/clear-all
+DELETE /api/session/clear-all
+```
+
+**คุณสมบัติ:**
+- รองรับทั้ง GET และ DELETE method
+- ใช้สำหรับ Development/Testing
+- ลบ Token ทั้งหมดในระบบพร้อมกัน
 
 **Response:**
 ```json

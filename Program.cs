@@ -130,7 +130,8 @@ app.MapGet("/api/session/validate", (HttpContext httpContext, string token) =>
 .WithDescription("Validate session token from K2 SmartObject (?token=xxx). Returns current device info and validation timestamp.");
 
 // Clear Session Token
-app.MapDelete("/api/session/clear", async (string token, ISessionService sessionService) =>
+// Support both DELETE (REST standard) and GET (browser friendly)
+app.MapMethods("/api/session/clear", new[] { "DELETE", "GET" }, async (string token, ISessionService sessionService) =>
 {
     try
     {
@@ -166,10 +167,11 @@ app.MapDelete("/api/session/clear", async (string token, ISessionService session
 })
 .WithName("ClearSessionToken")
 .WithTags("Session Management")
-.WithDescription("Clear specific session token (?token=xxx). Use this to logout or revoke a session.");
+.WithDescription("Clear specific session token (?token=xxx). Supports both DELETE and GET methods. Use this to logout or revoke a session.");
 
 // Clear All Sessions (for development/testing)
-app.MapDelete("/api/session/clear-all", async (ISessionService sessionService) =>
+// Support both DELETE (REST standard) and GET (browser friendly)
+app.MapMethods("/api/session/clear-all", new[] { "DELETE", "GET" }, async (ISessionService sessionService) =>
 {
     try
     {
@@ -187,7 +189,7 @@ app.MapDelete("/api/session/clear-all", async (ISessionService sessionService) =
 })
 .WithName("ClearAllSessions")
 .WithTags("Session Management")
-.WithDescription("Clear all session tokens (for development/testing only). Use with caution.");
+.WithDescription("Clear all session tokens (for development/testing only). Supports both DELETE and GET methods. Use with caution.");
 
 #endregion
 
