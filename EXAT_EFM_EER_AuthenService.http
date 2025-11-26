@@ -1,0 +1,23 @@
+@EXAT_EFM_EER_AuthenService_HostAddress = http://localhost:5185
+
+### ทดสอบ 1: สร้าง Session Token (ไม่ต้องส่ง parameter)
+GET {{EXAT_EFM_EER_AuthenService_HostAddress}}/api/session/create
+Accept: application/json
+
+### ทดสอบ 2: เรียก API ซ้ำอีกครั้ง (ควรได้ Token เดิม)
+GET {{EXAT_EFM_EER_AuthenService_HostAddress}}/api/session/create
+Accept: application/json
+
+### ทดสอบ 3: ตรวจสอบ Token (แทนที่ YOUR_TOKEN_HERE ด้วย Token จากการทดสอบข้างบน)
+GET {{EXAT_EFM_EER_AuthenService_HostAddress}}/api/session/validate?token=YOUR_TOKEN_HERE
+Accept: application/json
+
+### ทดสอบ 4: ลบ Session Token (แทนที่ YOUR_TOKEN_HERE ด้วย Token ที่ต้องการลบ)
+DELETE {{EXAT_EFM_EER_AuthenService_HostAddress}}/api/session/clear?token=YOUR_TOKEN_HERE
+Accept: application/json
+
+### ทดสอบ 5: ลบ Session Token ทั้งหมด (ใช้สำหรับ Development/Testing เท่านั้น)
+DELETE {{EXAT_EFM_EER_AuthenService_HostAddress}}/api/session/clear-all
+Accept: application/json
+
+###

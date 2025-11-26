@@ -1,0 +1,104 @@
+# Test Device Validation API
+
+## Test 1: Validate with MAC Address (Direct Connection)
+POST http://localhost:5185/api/device/validate
+Content-Type: application/json
+
+{
+  "macAddress": "AA:BB:CC:DD:EE:FF",
+  "ipAddress": "192.168.1.100",
+  "deviceName": "Computer01",
+  "isVpnConnection": false
+}
+
+###
+
+## Test 2: Validate with Device Fingerprint (VPN Connection)
+POST http://localhost:5185/api/device/validate
+Content-Type: application/json
+
+{
+  "macAddress": "00:00:00:00:00:00",
+  "deviceFingerprint": "a3f5e8d9c7b2e4f1d8c6b5a4",
+  "ipAddress": "10.0.0.1",
+  "realIpAddress": "203.154.1.100",
+  "deviceName": "VPN-Computer",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+  "isVpnConnection": true
+}
+
+###
+
+## Test 3: Validate Same Device Again (Should return IsNewDevice = false)
+POST http://localhost:5185/api/device/validate
+Content-Type: application/json
+
+{
+  "macAddress": "AA:BB:CC:DD:EE:FF",
+  "ipAddress": "192.168.1.100",
+  "deviceName": "Computer01",
+  "isVpnConnection": false
+}
+
+###
+
+## Test 4: Validate with Session Token
+POST http://localhost:5185/api/device/validate
+Content-Type: application/json
+
+{
+  "macAddress": "00:00:00:00:00:00",
+  "sessionToken": "session-token-12345",
+  "ipAddress": "192.168.1.150",
+  "deviceName": "Session-Device",
+  "isVpnConnection": false
+}
+
+###
+
+## Test 5: Invalid Request (No MAC, No Fingerprint, No Token)
+POST http://localhost:5185/api/device/validate
+Content-Type: application/json
+
+{
+  "ipAddress": "192.168.1.200",
+  "deviceName": "Invalid-Device"
+}
+
+###
+
+## Test 6: Get All Devices
+GET http://localhost:5185/api/devices
+
+###
+
+## Test 7: Get Device by MAC Address
+GET http://localhost:5185/api/device/AABBCCDDEEFF
+
+###
+
+## Test 8: Block Device
+POST http://localhost:5185/api/device/AABBCCDDEEFF/block
+
+###
+
+## Test 9: Validate Blocked Device (Should fail)
+POST http://localhost:5185/api/device/validate
+Content-Type: application/json
+
+{
+  "macAddress": "AA:BB:CC:DD:EE:FF",
+  "ipAddress": "192.168.1.100",
+  "deviceName": "Computer01",
+  "isVpnConnection": false
+}
+
+###
+
+## Test 10: Unblock Device
+POST http://localhost:5185/api/device/AABBCCDDEEFF/unblock
+
+###
+
+## Test 11: Health Check
+GET http://localhost:5185/api/health
