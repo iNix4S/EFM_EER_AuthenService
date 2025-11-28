@@ -315,7 +315,8 @@ dotnet run
 
 5. **เข้าถึง API**
    - HTTP: http://localhost:5185
-   - OpenAPI: http://localhost:5185/openapi/v1.json
+  - OpenAPI JSON: http://localhost:5185/openapi/v1.json
+  - Swagger UI (interactive docs): http://localhost:5185/swagger/index.html
 
 ### ทดสอบด้วย HTTP Request File
 เปิดไฟล์ `EXAT_EFM_EER_AuthenService.http` และคลิก "Send Request" เพื่อทดสอบแต่ละ API

@@ -5,7 +5,10 @@ using EXAT_EFM_EER_AuthenService.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+// Minimal OpenAPI JSON + Swagger UI (Swashbuckle)
 builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 // Register Session Service
 builder.Services.AddSingleton<ISessionService, SessionService>();
@@ -26,7 +29,17 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    // keep the existing OpenAPI JSON endpoint
     app.MapOpenApi();
+
+    // serve Swagger UI in development for interactive docs
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        // Point the UI to the same OpenAPI JSON used by MapOpenApi
+        options.SwaggerEndpoint("/openapi/v1.json", "EXAT_EFM_EER_AuthenService | v1");
+        options.RoutePrefix = "swagger"; // serve at /swagger
+    });
 }
 
 // Comment out HTTPS redirection for development

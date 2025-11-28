@@ -1,0 +1,43 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build: EFM_EER_AuthenService",
+      "type": "shell",
+      "command": "dotnet build EXAT_EFM_EER_AuthenService.csproj",
+      "group": "build",
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "Run: Start server (dev)",
+      "type": "shell",
+      "command": "dotnet run --project EXAT_EFM_EER_AuthenService.csproj --urls \"http://localhost:5185\"",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run: HTTP tests (PowerShell)",
+      "type": "shell",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}\\scripts\\run-http-tests.ps1\"",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Stop: Kill dotnet (5185)",
+      "type": "shell",
+      "command": "Get-Process -Name dotnet -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $PID } | ForEach-Object { Stop-Process -Id $_.Id -Force }",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
