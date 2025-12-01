@@ -1,12 +1,12 @@
 # EXAT EFM EER Authentication Service
 
 ## ภาพรวมโปรเจกต์
-โปรเจกต์ Web API สำหรับระบบ Session Token Management ที่พัฒนาด้วย .NET 9.0 โดยรองรับการทำงานร่วมกับ K2 SmartObject โดยมีการสร้าง Session Token อัตโนมัติจากข้อมูล Client (IP Address + User-Agent) โดยไม่ต้องส่ง MAC Address หรือ Device Fingerprint
+โปรเจกต์ Web API สำหรับระบบ Session Token Management ที่พัฒนาด้วย .NET 9.0 โดยรองรับการทำงานร่วมกับ K2 SmartObject พร้อมดึงข้อมูล Server Hardware (Hostname, MAC Address, Network Interfaces) มาแสดงใน Response
 
 ## เทคโนโลยีที่ใช้
 - **.NET 9.0** - Framework หลัก
 - **ASP.NET Core Minimal APIs** - สำหรับสร้าง RESTful API
-- **OpenAPI/Swagger** - สำหรับ API Documentation
+- **Swashbuckle.AspNetCore** - สำหรับ Swagger UI Documentation
 - **C# 12** - ภาษาโปรแกรมมิ่ง
 - **In-Memory Storage** - ConcurrentDictionary สำหรับเก็บ Session Token
 
@@ -19,7 +19,8 @@ EXAT_EFM_EER_AuthenService/
 ├── Services/
 │   └── DeviceService.cs       # Session Token Management Service
 ├── Helpers/
-│   └── DeviceInfoExtractor.cs # Device Information Extraction Utilities
+│   ├── DeviceInfoExtractor.cs # Device Information Extraction Utilities
+│   └── ClientDeviceInfo.cs    # Server Hardware Information Retrieval
 ├── Properties/
 │   └── launchSettings.json    # Launch configuration
 ├── chat-log/
@@ -71,54 +72,89 @@ EXAT_EFM_EER_AuthenService/
 
 ### 📌 Session Management APIs
 
-#### 1. สร้าง Session Token
+#### 1. สร้าง/ดึง Session Token
 ```
-GET /api/session/create?clientId=xxx
-GET /api/session/create?clientId=xxx&deviceName=My Computer
+GET /api/session/create?clientId={required}
 ```
 
 **คุณสมบัติ:**
 - **ต้องส่ง `clientId`** (REQUIRED) - Unique Identifier จาก Client (เช่น GUID ที่สร้างใน Browser)
-- แต่ละ `clientId` สร้าง Token ได้ครั้งเดียว (ไม่สามารถสร้างซ้ำได้จนกว่าจะ Clear Token)
+- **Idempotent** - เรียกซ้ำได้ โดยจะคืนค่า Session เดิมถ้ายังไม่หมดอายุ
 - อายุ Token กำหนดใน `appsettings.json` (default: 24 ชั่วโมง)
 - รองรับ VPN Detection
+- **รวมข้อมูล Server Hardware** - Hostname, MAC Address, Network Interfaces
 
 **Parameters:**
 - `clientId` (required) - Unique Client Identifier (เช่น GUID จาก `crypto.randomUUID()`)
-- `deviceName` (optional) - ชื่อเครื่องที่ต้องการกำหนด
 
 **K2 SmartObject Implementation:**
 ```javascript
 // สร้าง/ดึง Client ID จาก localStorage
 var clientId = localStorage.getItem('k2_client_id');
 if (!clientId) {
-    clientId = crypto.randomUUID(); // หรือใช้วิธีอื่นในการสร้าง GUID
+    clientId = crypto.randomUUID();
     localStorage.setItem('k2_client_id', clientId);
 }
 // เรียก API
 GET /api/session/create?clientId={clientId}
 ```
 
-**Response (Success):**
+**Response (Success - New Session):**
 ```json
 {
   "statusCode": 0,
-  "message": "New session token created successfully. Store this token in K2 SmartObject for future requests. Cannot create new token until this one is cleared.",
+  "message": "Session token retrieved successfully...",
   "data": {
     "sessionToken": "e4f5a6b7-c8d9-e0f1-a2b3-c4d5e6f7a8b9",
-    "expiresAt": "2025-11-27T10:30:00Z",
+    "expiresAt": "2025-12-02T10:30:00Z",
+    "isNewSession": true,
     "deviceInfo": {
-      "macAddress": "12345678-1234-1234-1234-123456789abc",
-      "deviceName": "Windows (Edge)",
       "ipAddress": "192.168.1.100",
       "realIpAddress": "203.154.1.1",
       "userAgent": "Mozilla/5.0...",
-      "isVpnConnection": false,
       "sessionToken": "e4f5a6b7-c8d9-e0f1-a2b3-c4d5e6f7a8b9",
-      "registeredAt": "2025-11-26T10:30:00",
-      "lastConnectedAt": "2025-11-26T10:30:00",
+      "isVpnConnection": false,
+      "registeredAt": "2025-12-01T10:30:00",
+      "lastConnectedAt": "2025-12-01T10:30:00",
       "status": "Active"
+    },
+    "serverDeviceInfo": {
+      "hostname": "DESKTOP-NK8KGKO",
+      "primaryMacAddress": "E8-80-88-54-6C-08",
+      "networkInterfaces": [
+        {
+          "name": "Ethernet",
+          "description": "Intel(R) Ethernet Connection (16) I219-V",
+          "type": "Ethernet",
+          "status": "Up",
+          "macAddress": "E8-80-88-54-6C-08",
+          "isActive": true,
+          "dhcpEnabled": true,
+          "ipv4Addresses": ["192.168.1.100"],
+          "ipv6Addresses": ["fe80::a1b2:c3d4:e5f6:7890"],
+          "subnetMasks": ["255.255.255.0"],
+          "defaultGateways": ["192.168.1.1"],
+          "dnsServers": ["8.8.8.8", "8.8.4.4"],
+          "dnsSuffix": "lan"
+        }
+      ],
+      "retrievedAt": "2025-12-01T10:30:00"
     }
+  }
+}
+```
+
+**Response (Success - Existing Session):**
+```json
+{
+  "statusCode": 0,
+  "message": "Session token retrieved successfully...",
+  "data": {
+    "sessionToken": "e4f5a6b7-c8d9-e0f1-a2b3-c4d5e6f7a8b9",
+    "expiresAt": "2025-12-02T10:30:00Z",
+    "isNewSession": false,
+    "deviceInfo": { ... },
+    "serverDeviceInfo": { ... }
   }
 }
 ```
@@ -128,15 +164,6 @@ GET /api/session/create?clientId={clientId}
 {
   "statusCode": 400,
   "message": "clientId is required. Please provide a unique client identifier (e.g., GUID generated on client-side). Example: /api/session/create?clientId=12345678-1234-1234-1234-123456789abc",
-  "data": null
-}
-```
-
-**Response (Error - Already has token):**
-```json
-{
-  "statusCode": 1,
-  "message": "Device already has an active session token. Please clear the existing token before creating a new one.",
   "data": null
 }
 ```
@@ -216,38 +243,52 @@ DELETE /api/session/clear-all
 ```json
 {
   "statusCode": 0,
-  "message": "Session token cleared successfully",
+  "message": "Cleared 5 session token(s) successfully",
   "data": {
-    "token": "e4f5a6b7-c8d9-e0f1-a2b3-c4d5e6f7a8b9",
-    "clearedAt": "2025-11-26T10:30:00"
+    "clearedCount": 5,
+    "clearedAt": "2025-12-01T10:30:00"
   }
 }
 ```
 
-**Error Response (Token ไม่พบ):**
-```json
-{
-  "statusCode": 404,
-  "message": "Session token not found or already expired",
-  "data": null
-}
+#### 5. ดึงข้อมูล Server Device
+```
+GET /api/device/info
 ```
 
-#### 4. ลบ Session Token ทั้งหมด (Development/Testing)
-```
-DELETE /api/session/clear-all
-```
-
-**⚠️ คำเตือน:** ใช้สำหรับการพัฒนาและทดสอบเท่านั้น จะลบ Session Token ทั้งหมดในระบบ
+**คุณสมบัติ:**
+- ดึงข้อมูล Hostname และ Network Interfaces ของเซิร์ฟเวอร์
+- แสดงเฉพาะ Network Interfaces ที่ Active (Status = Up)
+- รวมข้อมูล IP, MAC Address, DNS, Gateway
 
 **Response:**
 ```json
 {
   "statusCode": 0,
-  "message": "Cleared 5 session token(s) successfully",
+  "message": "Device information retrieved successfully...",
   "data": {
-    "clearedCount": 5,
-    "clearedAt": "2025-11-26T10:30:00"
+    "hostname": "DESKTOP-NK8KGKO",
+    "primaryMacAddress": "E8-80-88-54-6C-08",
+    "networkInterfaces": [
+      {
+        "name": "Ethernet",
+        "description": "Intel(R) Ethernet Connection...",
+        "type": "Ethernet",
+        "status": "Up",
+        "macAddress": "E8-80-88-54-6C-08",
+        "isActive": true,
+        "dhcpEnabled": true,
+        "ipv4Addresses": ["192.168.1.100"],
+        "ipv6Addresses": ["fe80::..."],
+        "subnetMasks": ["255.255.255.0"],
+        "defaultGateways": ["192.168.1.1"],
+        "dnsServers": ["8.8.8.8"],
+        "dnsSuffix": "lan"
+      }
+    ],
+    "totalInterfaces": 1,
+    "activeInterfaces": 1,
+    "retrievedAt": "2025-12-01T10:30:00"
   }
 }
 ```
@@ -315,7 +356,8 @@ dotnet run
 
 5. **เข้าถึง API**
    - HTTP: http://localhost:5185
-   - OpenAPI: http://localhost:5185/openapi/v1.json
+   - Swagger UI: http://localhost:5185/swagger
+   - OpenAPI Spec: http://localhost:5185/swagger/v1/swagger.json
 
 ### ทดสอบด้วย HTTP Request File
 เปิดไฟล์ `EXAT_EFM_EER_AuthenService.http` และคลิก "Send Request" เพื่อทดสอบแต่ละ API
@@ -327,6 +369,14 @@ $result = Invoke-RestMethod -Uri "http://localhost:5185/api/session/create" -Met
 $token = $result.data.sessionToken
 
 # ตรวจสอบ Token
+Invoke-RestMethod -Uri "http://localhost:5185/api/session/validate?token=$token" -Method GET
+
+# ดึงข้อมูล Server Device
+Invoke-RestMethod -Uri "http://localhost:5185/api/device/info" -Method GET
+
+# ลบ Token
+Invoke-RestMethod -Uri "http://localhost:5185/api/session/clear?token=$token" -Method DELETE
+```
 Invoke-RestMethod -Uri "http://localhost:5185/api/session/validate?token=$token" -Method GET
 
 # ลบ Token

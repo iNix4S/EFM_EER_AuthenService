@@ -5,7 +5,8 @@ using EXAT_EFM_EER_AuthenService.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 // Register Session Service
 builder.Services.AddSingleton<ISessionService, SessionService>();
@@ -26,7 +27,8 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 // Comment out HTTPS redirection for development
@@ -39,7 +41,7 @@ app.UseCors("K2Policy");
 // Generate Session Token (for K2 SmartObject - no MAC Address needed)
 // Creates a new token ONLY if client doesn't have an active token
 // Client MUST provide clientId (unique ID from client-side, e.g. GUID)
-app.MapGet("/api/session/create", async (HttpContext httpContext, ISessionService sessionService, string? clientId = null, string? deviceName = null) =>
+app.MapGet("/api/session/create", async (HttpContext httpContext, ISessionService sessionService, string? clientId = null) =>
 {
     try
     {
@@ -58,8 +60,7 @@ app.MapGet("/api/session/create", async (HttpContext httpContext, ISessionServic
         // Create device info from HTTP request
         var deviceInfo = new DeviceInfo
         {
-            MacAddress = deviceId, // Store clientId in MacAddress field
-            DeviceName = deviceName ?? DeviceInfoExtractor.GetDeviceName(httpContext),
+            MacAddress = deviceId, // Store clientId in MacAddress field (for internal use only, not returned)
             IpAddress = DeviceInfoExtractor.GetClientIpAddress(httpContext),
             RealIpAddress = DeviceInfoExtractor.GetRealIpAddress(httpContext),
             UserAgent = DeviceInfoExtractor.GetUserAgent(httpContext),
@@ -69,18 +70,25 @@ app.MapGet("/api/session/create", async (HttpContext httpContext, ISessionServic
             Status = "Active"
         };
 
-        // Create new session token (only if client doesn't have active token)
-        var response = await sessionService.CreateSessionAsync(deviceId, deviceName, deviceInfo);
+        // Get server device information (hostname and MAC addresses)
+        var serverDeviceInfo = new
+        {
+            Hostname = ClientDeviceInfo.GetHostname(),
+            PrimaryMacAddress = ClientDeviceInfo.GetPrimaryMacAddress(),
+            NetworkInterfaces = ClientDeviceInfo.GetNetworkInterfaces(),
+            RetrievedAt = DateTime.Now
+        };
+
+        // Create or get existing session token
+        var response = await sessionService.CreateSessionAsync(deviceId, null, deviceInfo);
+        
+        // Add server device info to response
+        response.ServerDeviceInfo = serverDeviceInfo;
 
         return Results.Ok(K2Response<SessionTokenResponse>.Success(
             response,
-            "New session token created successfully. Store this token in K2 SmartObject for future requests. Cannot create new token until this one is cleared."
+            "Session token retrieved successfully. Store this token in K2 SmartObject for future requests."
         ));
-    }
-    catch (InvalidOperationException ex)
-    {
-        // Client already has an active token
-        return Results.Ok(K2Response<SessionTokenResponse>.Error(1, ex.Message));
     }
     catch (Exception ex)
     {
@@ -89,7 +97,7 @@ app.MapGet("/api/session/create", async (HttpContext httpContext, ISessionServic
 })
 .WithName("CreateSessionToken")
 .WithTags("Session Management")
-.WithDescription("Create session token for K2 SmartObject. REQUIRED: clientId (unique identifier from client browser/device). Can only create ONE token per client - must clear existing token before creating new one. Example: GET /api/session/create?clientId=12345678-1234-1234-1234-123456789abc&deviceName=My Computer");
+.WithDescription("Create session token for K2 SmartObject. REQUIRED: clientId (unique identifier from client browser/device). Device name will be auto-extracted from User-Agent. Can only create ONE token per client - must clear existing token before creating new one. Example: GET /api/session/create?clientId=12345678-1234-1234-1234-123456789abc");
 
 // Validate with Session Token (for K2 SmartObject)
 app.MapGet("/api/session/validate", (HttpContext httpContext, string token) =>
@@ -190,6 +198,45 @@ app.MapMethods("/api/session/clear-all", new[] { "DELETE", "GET" }, async (ISess
 .WithName("ClearAllSessions")
 .WithTags("Session Management")
 .WithDescription("Clear all session tokens (for development/testing only). Supports both DELETE and GET methods. Use with caution.");
+
+#endregion
+
+#region Client Device Information APIs
+
+// Get client device information (hostname and network interfaces)
+// This API must be called FROM the client machine to get its own information
+// The client then sends this information to /api/session/create
+app.MapGet("/api/device/info", () =>
+{
+    try
+    {
+        var hostname = ClientDeviceInfo.GetHostname();
+        var networkInterfaces = ClientDeviceInfo.GetNetworkInterfaces();
+        var primaryMac = ClientDeviceInfo.GetPrimaryMacAddress();
+
+        var deviceInfo = new
+        {
+            Hostname = hostname,
+            PrimaryMacAddress = primaryMac,
+            NetworkInterfaces = networkInterfaces,
+            TotalInterfaces = networkInterfaces.Count,
+            ActiveInterfaces = networkInterfaces.Count(i => i.IsActive),
+            RetrievedAt = DateTime.Now
+        };
+
+        return Results.Ok(K2Response<object>.Success(
+            deviceInfo,
+            "Device information retrieved successfully. NOTE: This is the information from the machine that calls this API (client-side application must call this API from user's machine)."
+        ));
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(K2Response<object>.Error(1, $"Error: {ex.Message}"));
+    }
+})
+.WithName("GetDeviceInfo")
+.WithTags("Device Information")
+.WithDescription("Get device information (hostname and MAC addresses) from the machine that calls this API. CLIENT APPLICATION must call this endpoint from user's machine to get their device info, then send it to /api/session/create");
 
 #endregion
 
