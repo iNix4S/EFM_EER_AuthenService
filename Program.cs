@@ -5,8 +5,7 @@ using EXAT_EFM_EER_AuthenService.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-// Minimal OpenAPI JSON + Swagger UI (Swashbuckle)
-builder.Services.AddOpenApi();
+// Swagger UI (Swashbuckle)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -29,17 +28,9 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    // keep the existing OpenAPI JSON endpoint
-    app.MapOpenApi();
-
     // serve Swagger UI in development for interactive docs
     app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        // Point the UI to the same OpenAPI JSON used by MapOpenApi
-        options.SwaggerEndpoint("/openapi/v1.json", "EXAT_EFM_EER_AuthenService | v1");
-        options.RoutePrefix = "swagger"; // serve at /swagger
-    });
+    app.UseSwaggerUI();
 }
 
 // Comment out HTTPS redirection for development
@@ -96,10 +87,18 @@ app.MapGet("/api/session/create", async (HttpContext httpContext, ISessionServic
         // Add server device info to response
         response.ServerDeviceInfo = serverDeviceInfo;
 
-        return Results.Ok(K2Response<SessionTokenResponse>.Success(
-            response,
-            "Session token retrieved successfully. Store this token in K2 SmartObject for future requests."
-        ));
+        // Return statusCode 1 if existing session, 0 if new session
+        var statusCode = response.IsNewSession ? 0 : 1;
+        var message = response.IsNewSession 
+            ? "Session token created successfully. Store this token in K2 SmartObject for future requests."
+            : "มี session อยู่แล้วและยังไม่หมดอายุ (request ซ้ำ) - Active session already exists. Using existing token.";
+
+        return Results.Ok(new K2Response<SessionTokenResponse>
+        {
+            StatusCode = statusCode,
+            Message = message,
+            Data = response
+        });
     }
     catch (Exception ex)
     {
