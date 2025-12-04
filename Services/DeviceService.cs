@@ -58,8 +58,10 @@ public class SessionService : ISessionService
             // Check if token is still valid
             if (existingSession.ExpiresAt > DateTime.Now)
             {
-                // Cannot create new token - device already has an active token
-                throw new InvalidOperationException($"Device already has an active session token. Please clear the existing token before creating a new one.");
+                // Mark as existing session
+                existingSession.IsNewSession = false;
+                // Return existing session instead of error
+                return Task.FromResult(existingSession);
             }
             
             // Token expired, remove old entries
@@ -78,6 +80,7 @@ public class SessionService : ISessionService
         {
             SessionToken = sessionToken,
             ExpiresAt = expiresAt,
+            IsNewSession = true,
             DeviceInfo = deviceInfo
         };
 

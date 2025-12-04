@@ -1,18 +1,22 @@
 namespace EXAT_EFM_EER_AuthenService.Models;
 
+using System.Text.Json.Serialization;
+
 /// <summary>
 /// Device information model
 /// </summary>
 public class DeviceInfo
 {
     /// <summary>
-    /// MAC Address of the device
+    /// MAC Address of the device (internal use only - not serialized)
     /// </summary>
+    [JsonIgnore]
     public string MacAddress { get; set; } = string.Empty;
 
     /// <summary>
-    /// Device name/hostname
+    /// Device name/hostname (internal use only - not serialized)
     /// </summary>
+    [JsonIgnore]
     public string? DeviceName { get; set; }
 
     /// <summary>
@@ -165,7 +169,17 @@ public class SessionTokenResponse
     public DateTime ExpiresAt { get; set; }
 
     /// <summary>
+    /// Indicates if this is a newly created session (true) or existing session (false)
+    /// </summary>
+    public bool IsNewSession { get; set; }
+
+    /// <summary>
     /// Device information associated with this token
     /// </summary>
     public DeviceInfo? DeviceInfo { get; set; }
+
+    /// <summary>
+    /// Server device information (hostname and network interfaces from the machine running the API)
+    /// </summary>
+    public object? ServerDeviceInfo { get; set; }
 }
